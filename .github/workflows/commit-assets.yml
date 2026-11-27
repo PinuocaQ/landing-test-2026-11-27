@@ -1,0 +1,44 @@
+name: Commit decoded assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "b64/**"
+      - ".github/workflows/commit-assets.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  commit-binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Decode binary assets and commit
+        run: |
+          set -euo pipefail
+          if [ ! -d b64 ]; then
+            echo "No b64 directory; nothing to decode."
+            exit 0
+          fi
+          find b64 -type f -name '*.b64' -print | while read -r f; do
+            rel="${f#b64/}"
+            out="${rel%.b64}"
+            mkdir -p "$(dirname "$out")"
+            base64 -d "$f" > "$out"
+            echo "decoded $f -> $out"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add midi/assets midi/fonts baitao/images baitao/fonts
+          if git diff --cached --quiet; then
+            echo "No binary changes to commit."
+            exit 0
+          fi
+          git commit -m "Add decoded binary images and fonts for HTML preview"
+          git push
